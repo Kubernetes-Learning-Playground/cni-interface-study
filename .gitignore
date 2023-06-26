@@ -1,4 +1,4 @@
-config
+
 
 # Binaries for programs and plugins
 *.exe
@@ -6,7 +6,6 @@ config
 *.dll
 *.so
 *.dylib
-bin
 testbin/*
 
 # Test binary, build with `go test -c`

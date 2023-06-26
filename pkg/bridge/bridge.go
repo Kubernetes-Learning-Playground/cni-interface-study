@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"fmt"
+
 	"github.com/vishvananda/netlink"
 )
 
