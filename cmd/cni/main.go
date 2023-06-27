@@ -2,60 +2,80 @@ package main
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/containernetworking/cni/pkg/skel"
+	"github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/040"
 	"github.com/containernetworking/cni/pkg/version"
-	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/vishvananda/netlink"
 	"github/mycni/cni_practice/pkg/bridge"
 	"github/mycni/cni_practice/pkg/config"
 	"github/mycni/cni_practice/pkg/veth"
+	"k8s.io/klog/v2"
 )
 
-func log(str string) {
-	fmt.Fprintf(os.Stderr, str)
-}
-
+// cmdAdd CNI add方法
 func cmdAdd(args *skel.CmdArgs) error {
-	cfg, err := config.ConfigFromStdin(args.StdinData)
+	// 使用cnitool 打印log会报错。
+	//fmt.Printf("cmdAdd containerID: %s \n", args.ContainerID)
+	//fmt.Printf("cmdAdd netNS: %s \n", args.Netns)
+	//fmt.Printf("cmdAdd ifName: %s \n", args.IfName)
+	//fmt.Printf("cmdAdd args: %s \n", args.Args)
+	//fmt.Printf("cmdAdd path: %s \n", args.Path)
+	//fmt.Printf("cmdAdd stdin: %s \n", string(args.StdinData))
+	/*
+			cmdAdd containerID: cnitool-77383ca0a0715733ca6f，唯一标示
+			cmdAdd netNS: /var/run/netns/testing		# 设置网络命名空间的路径与名称 ex: ip netns add testing or ip netns delete testing
+		    cmdAdd ifName: eth0，在容器内创建的接口名称
+			cmdAdd args: 使用cni插件 传入环境参数，以分号分隔的字母数字键值对；例如，“FOO=BAR;ABC=123”
+			cmdAdd path: ./bin， cni插件 可执行文件路径
+			cmdAdd stdin: {\"bridge\":\"jtthink0\",\"cniVersion\":\"0.4.0\",\"ipam\":{\"dataDir\":\"/tmp/cni-host\",\"routes\":[{\"dst\":\"0.0.0.0/0\"}],\"subnet\":\"10.16.0.0/16\",\"type\":\"host-local\"},\"name\":\"mynet\",\"type\":\"jtthink\"}
+	*/
+
+	// 获取CNI conf 配置文件对象
+	cfg, err := config.LoadCNIConfig(args.StdinData)
 	if err != nil {
+		fmt.Println("config error: ", err)
 		return err
 	}
 
-	ret := &current.Result{CNIVersion: cfg.CNIVersion}
+	result := &current.Result{
+		CNIVersion: current.ImplementedSpecVersion,
+	}
 
+	// 用ipam分配ip地址
 	if cfg.IPAM.Type != "" {
-		r, err := ipam.ExecAdd(cfg.IPAM.Type, args.StdinData)
+		r, err := veth.Ipam(cfg)
 		if err != nil {
+			klog.Error("ipam error: ", err)
 			return err
 		}
 		ipamRet, err := current.NewResultFromResult(r)
 		if err != nil {
+			klog.Error("ipamRet error: ", err)
 			return err
 		}
-		//到这一步获取到 分配的IP
-		ret.IPs = ipamRet.IPs
-		ret.DNS = ipamRet.DNS
-		ret.Routes = ipamRet.Routes
-		//ipamRet.PrintTo(os.Stderr)
+		// 返回的结果赋值
+		result.IPs = ipamRet.IPs
+		result.DNS = ipamRet.DNS
+		result.Routes = ipamRet.Routes
 
 	}
 
 	// 创建或更新网桥
 	var br *netlink.Bridge
-	if br, err = bridge.CreateOrUpdateBridge("jtthink0"); err != nil {
+	if br, err = bridge.CreateOrUpdateBridge(cfg.Bridge); err != nil {
+		klog.Error("bridge error: ", err)
 		return err
 	}
 
-	// 创建veth 设备
-	err = veth.CreateVeth(args.Netns, ret.IPs[0].Address.String(), br)
+	// 创建veth设备
+	err = veth.CreateVeth(args.Netns, result.IPs[0].Address.String(), br)
 	if err != nil {
+		klog.Error("veth error: ", err)
 		return err
 	}
 
-	return ret.Print()
+	return types.PrintResult(result, cfg.CNIVersion)
 
 }
 

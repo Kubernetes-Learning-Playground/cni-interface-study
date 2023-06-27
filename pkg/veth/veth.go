@@ -9,33 +9,35 @@ import (
 	"github.com/vishvananda/netns"
 )
 
-/*
- nspath 来自于 args.Netns  网络命名空间的路径 。 譬如 /var/run/netns/testing
-addr 在我们分配ip 后 获取
-*/
+// CreateVeth 创建veth
 func CreateVeth(nspath string, addrstr string, br *netlink.Bridge) error {
-	// 生成veth设备 对  的名称
+	// 生成veth设备对名称
+	// TODO: 名字需要修改
 	var veth_host, veth_container = RandomVethName(), RandomVethName()
 	vethpeer := &netlink.Veth{
 		LinkAttrs: netlink.LinkAttrs{Name: veth_host, MTU: 1500},
 		PeerName:  veth_container, //随机名称  一般是veth@xxxx  建立在宿主机上
 	}
 
-	// 好比执行了ip link add
+	// 执行ip link add
 	err := netlink.LinkAdd(vethpeer)
 	if err != nil {
 		return err
 	}
 
-	// 在宿主机里面的 veth 端
+	// 宿主机
+
+	// 宿主机veth端
 	myveth_host, err := netlink.LinkByName(veth_host)
 	if err != nil {
 		return err
 	}
+	// 挂bridge
 	err = netlink.LinkSetMaster(myveth_host, br)
 	if err != nil {
 		return err
 	}
+	// 启动veth
 	err = netlink.LinkSetUp(myveth_host)
 	if err != nil {
 		return err
@@ -53,32 +55,34 @@ func CreateVeth(nspath string, addrstr string, br *netlink.Bridge) error {
 		return err
 	}
 
+	// 容器中
 
-	// ip link set xxx netns nsname   给 veth设备 设置network namespace
-	// 好比 移动到 容器中
+	// ip link set xxx netns nsname
+	// 把另一端veth放入容器ns
 	err = netlink.LinkSetNsFd(myveth_container, int(ns))
 	if err != nil {
 		return err
 	}
 
-	err = netns.Set(ns) //设置当前网络命名空间   因为要进入 这个ns 进行操作
+	// 进入ns空间
+	err = netns.Set(ns)
 	if err != nil {
 		return err
 	}
-	//重新获取 容器内的 veth设备对象
+	// 获取ns的veth设备
 	myveth_container, err = netlink.LinkByName(veth_container)
 	if err != nil {
 		return err
 	}
 
-
+	// 设置地址
 	addr, _ := netlink.ParseAddr(addrstr)
 	//设置IP地址
 	err = netlink.AddrAdd(myveth_container, addr)
 	if err != nil {
 		return err
 	}
-	// 把容器中 veth设备名称改成 eth0 ,看起来有逼格
+	// ns中veth设备名称改为eth0
 	_ = netlink.LinkSetName(myveth_container, "eth0")
 	// 启动
 	err = netlink.LinkSetUp(myveth_container)
@@ -86,17 +90,19 @@ func CreateVeth(nspath string, addrstr string, br *netlink.Bridge) error {
 		return err
 	}
 	return addRoute()
-
 }
 
-//随机产生一个VethName
+// RandomVethName 生成VethName
 func RandomVethName() string {
 	entropy := make([]byte, 4)
 	rand.Read(entropy)
 	return fmt.Sprintf("jtveth%x", entropy)
 }
 
-
+// addRoute 为ns内部的网络添加路由，才能让容器内的ns与容器外的互通
+// ex: ip netns exec testing ping 10.0.0.8
+// ex: ping 10.16.0.2
+// ip netns exec testing route -n 查看ns的路由
 func addRoute() error {
 	route := &netlink.Route{
 		Dst: &net.IPNet{
