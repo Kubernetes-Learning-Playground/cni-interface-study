@@ -42,6 +42,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 		CNIVersion: current.ImplementedSpecVersion,
 	}
 
+	cniArgs := veth.ParseArgs(args.Args)
+
 	// 用ipam分配ip地址
 	if cfg.IPAM.Type != "" {
 		r, err := veth.Ipam(cfg)
@@ -69,7 +71,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// 创建veth设备
-	err = veth.CreateVeth(args.Netns, result.IPs[0].Address.String(), br)
+	err = veth.CreateVeth(args.Netns, result.IPs[0].Address.String(), br, cniArgs.PodName, cniArgs.ContainerID)
 	if err != nil {
 		klog.Error("veth error: ", err)
 		return err
@@ -80,5 +82,31 @@ func cmdAdd(args *skel.CmdArgs) error {
 }
 
 func main() {
-	skel.PluginMain(cmdAdd, nil, nil, version.All, "jtthink")
+	skel.PluginMain(cmdAdd, nil, cmdDel, version.All, "jtthink")
+}
+
+
+
+// cmdDel CNI del方法
+func cmdDel(args *skel.CmdArgs) error {
+
+	// 获取CNI conf 配置文件对象
+	cfg, err := config.LoadCNIConfig(args.StdinData)
+	if err != nil {
+		fmt.Println("config error: ", err)
+		return err
+	}
+
+	// 释放ipam ip，不需要手动删除ipam文件夹
+	err = veth.ReleaseIP(cfg)
+	if err != nil {
+		fmt.Println("release ip err: ", err)
+		return err
+	}
+
+	// TODO 删除veth pair
+
+	// TODO 删除bridge
+	return nil
+
 }

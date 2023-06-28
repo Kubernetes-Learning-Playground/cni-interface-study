@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"github.com/containernetworking/cni/pkg/types"
 )
 
 // Config CNI conf配置文件
@@ -10,15 +11,17 @@ type Config struct {
 	CNIVersion string `json:"cniVersion"`
 	Name       string `json:"name"`
 	Type       string `json:"type"`
-	Bridge     string `json:"bridge"` // 完全名称。 默认是 jtthink0
+	Bridge     string `json:"bridge"`
 	IPAM       IPAM   `json:"ipam"`
 }
 
 type IPAM struct {
-	Type       string `json:"type"`
-	Subnet     string `json:"subnet"`
-	RangeStart string `json:"rangeStart"`
-	RangeEnd   string `json:"rangeEnd"`
+	Type       string         `json:"type"`
+	Subnet     string         `json:"subnet"`
+	RangeStart string         `json:"rangeStart"`
+	RangeEnd   string         `json:"rangeEnd"`
+	DataDir    string         `json:"dataDir"`
+	Routes     []*types.Route `json:"routes"`
 }
 
 func LoadCNIConfig(data []byte) (*Config, error) {

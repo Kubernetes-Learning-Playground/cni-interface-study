@@ -44,6 +44,8 @@ func Ipam(conf *config.Config) (types.Result, error) {
 					},
 				},
 			},
+			DataDir: conf.IPAM.DataDir, // 加入才会生效
+			Routes:  conf.IPAM.Routes,
 		},
 	}
 	ipamConfBytes, err := json.Marshal(ipamConf)
@@ -52,4 +54,50 @@ func Ipam(conf *config.Config) (types.Result, error) {
 	}
 
 	return ipam.ExecAdd(conf.IPAM.Type, ipamConfBytes)
+}
+
+func ReleaseIP(conf *config.Config) error {
+	ipNet, err := types.ParseCIDR(conf.IPAM.Subnet)
+	if err != nil {
+		return errors.Wrapf(err, "ParseCIDR error")
+	}
+
+	var startIP, endIP net.IP
+	if conf.IPAM.RangeStart != "" {
+		startIP = net.ParseIP(conf.IPAM.RangeStart)
+		if startIP == nil {
+			return errors.Errorf("range start %s error", conf.IPAM.RangeStart)
+		}
+	}
+	if conf.IPAM.RangeEnd != "" {
+		endIP = net.ParseIP(conf.IPAM.RangeEnd)
+		if endIP == nil {
+			return errors.Errorf("range end %s error", conf.IPAM.RangeEnd)
+		}
+	}
+
+	ipamConf := allocator.Net{
+		Name:       conf.Name,
+		CNIVersion: conf.CNIVersion,
+		IPAM: &allocator.IPAMConfig{
+			Type: conf.IPAM.Type,
+			Ranges: []allocator.RangeSet{
+				{
+					{
+						Subnet:     types.IPNet(*ipNet),
+						RangeStart: startIP,
+						RangeEnd:   endIP,
+					},
+				},
+			},
+			DataDir: conf.IPAM.DataDir, // 加入才会生效
+			Routes:  conf.IPAM.Routes,
+		},
+	}
+	ipamConfBytes, err := json.Marshal(ipamConf)
+	if err != nil {
+		return errors.Wrapf(err, "marshal ipam conf error")
+	}
+
+	return ipam.ExecDel(conf.IPAM.Type, ipamConfBytes)
 }

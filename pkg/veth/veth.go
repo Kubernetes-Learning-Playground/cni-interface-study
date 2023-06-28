@@ -10,13 +10,13 @@ import (
 )
 
 // CreateVeth 创建veth
-func CreateVeth(nspath string, addrstr string, br *netlink.Bridge) error {
+func CreateVeth(nspath string, addrstr string, br *netlink.Bridge, vethHost, vethContainer string) error {
 	// 生成veth设备对名称
 	// TODO: 名字需要修改
-	var veth_host, veth_container = RandomVethName(), RandomVethName()
+	//var vethHost, vethContainer = RandomVethName(), RandomVethName()
 	vethpeer := &netlink.Veth{
-		LinkAttrs: netlink.LinkAttrs{Name: veth_host, MTU: 1500},
-		PeerName:  veth_container, //随机名称  一般是veth@xxxx  建立在宿主机上
+		LinkAttrs: netlink.LinkAttrs{Name: vethHost, MTU: 1500},
+		PeerName:  vethContainer, //随机名称  一般是veth@xxxx  建立在宿主机上
 	}
 
 	// 执行ip link add
@@ -28,7 +28,7 @@ func CreateVeth(nspath string, addrstr string, br *netlink.Bridge) error {
 	// 宿主机
 
 	// 宿主机veth端
-	myveth_host, err := netlink.LinkByName(veth_host)
+	myveth_host, err := netlink.LinkByName(vethHost)
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func CreateVeth(nspath string, addrstr string, br *netlink.Bridge) error {
 	defer ns.Close()
 
 	//获取 容器里面的 veth设备
-	myveth_container, err := netlink.LinkByName(veth_container)
+	myvethContainer, err := netlink.LinkByName(vethContainer)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func CreateVeth(nspath string, addrstr string, br *netlink.Bridge) error {
 
 	// ip link set xxx netns nsname
 	// 把另一端veth放入容器ns
-	err = netlink.LinkSetNsFd(myveth_container, int(ns))
+	err = netlink.LinkSetNsFd(myvethContainer, int(ns))
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func CreateVeth(nspath string, addrstr string, br *netlink.Bridge) error {
 		return err
 	}
 	// 获取ns的veth设备
-	myveth_container, err = netlink.LinkByName(veth_container)
+	myvethContainer, err = netlink.LinkByName(vethContainer)
 	if err != nil {
 		return err
 	}
@@ -78,14 +78,14 @@ func CreateVeth(nspath string, addrstr string, br *netlink.Bridge) error {
 	// 设置地址
 	addr, _ := netlink.ParseAddr(addrstr)
 	//设置IP地址
-	err = netlink.AddrAdd(myveth_container, addr)
+	err = netlink.AddrAdd(myvethContainer, addr)
 	if err != nil {
 		return err
 	}
 	// ns中veth设备名称改为eth0
-	_ = netlink.LinkSetName(myveth_container, "eth0")
+	_ = netlink.LinkSetName(myvethContainer, "eth0")
 	// 启动
-	err = netlink.LinkSetUp(myveth_container)
+	err = netlink.LinkSetUp(myvethContainer)
 	if err != nil {
 		return err
 	}
@@ -112,4 +112,9 @@ func addRoute() error {
 		Gw: net.IPv4(10, 16, 0, 1), //网关地址  -- 网桥IP
 	}
 	return netlink.RouteAdd(route)
+}
+
+// TODO: 删除veth设备
+func DelVeth() {
+
 }
