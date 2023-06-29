@@ -10,6 +10,7 @@ import (
 	"net"
 )
 
+// Ipam 使用ipam插件分配网络地址
 func Ipam(conf *config.Config) (types.Result, error) {
 	ipNet, err := types.ParseCIDR(conf.IPAM.Subnet)
 	if err != nil {
@@ -56,6 +57,7 @@ func Ipam(conf *config.Config) (types.Result, error) {
 	return ipam.ExecAdd(conf.IPAM.Type, ipamConfBytes)
 }
 
+// ReleaseIP 释放ipam分配的地址
 func ReleaseIP(conf *config.Config) error {
 	ipNet, err := types.ParseCIDR(conf.IPAM.Subnet)
 	if err != nil {

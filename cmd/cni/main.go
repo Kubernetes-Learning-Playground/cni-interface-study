@@ -6,12 +6,16 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/040"
 	"github.com/containernetworking/cni/pkg/version"
+	bv "github.com/containernetworking/plugins/pkg/utils/buildversion"
 	"github.com/vishvananda/netlink"
 	"github/mycni/cni_practice/pkg/bridge"
 	"github/mycni/cni_practice/pkg/config"
 	"github/mycni/cni_practice/pkg/veth"
-	"k8s.io/klog/v2"
 )
+
+func main() {
+	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, version.All, bv.BuildString("mycniplugin"))
+}
 
 // cmdAdd CNI add方法
 func cmdAdd(args *skel.CmdArgs) error {
@@ -48,44 +52,37 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if cfg.IPAM.Type != "" {
 		r, err := veth.Ipam(cfg)
 		if err != nil {
-			klog.Error("ipam error: ", err)
+			fmt.Println("ipam error: ", err)
 			return err
 		}
 		ipamRet, err := current.NewResultFromResult(r)
 		if err != nil {
-			klog.Error("ipamRet error: ", err)
+			fmt.Println("ipamRet error: ", err)
 			return err
 		}
 		// 返回的结果赋值
 		result.IPs = ipamRet.IPs
 		result.DNS = ipamRet.DNS
 		result.Routes = ipamRet.Routes
-
 	}
 
 	// 创建或更新网桥
 	var br *netlink.Bridge
 	if br, err = bridge.CreateOrUpdateBridge(cfg.Bridge); err != nil {
-		klog.Error("bridge error: ", err)
+		fmt.Println("bridge error: ", err)
 		return err
 	}
 
 	// 创建veth设备
 	err = veth.CreateVeth(args.Netns, result.IPs[0].Address.String(), br, cniArgs.PodName, cniArgs.ContainerID)
 	if err != nil {
-		klog.Error("veth error: ", err)
+		fmt.Println("veth error: ", err)
 		return err
 	}
 
 	return types.PrintResult(result, cfg.CNIVersion)
 
 }
-
-func main() {
-	skel.PluginMain(cmdAdd, nil, cmdDel, version.All, "jtthink")
-}
-
-
 
 // cmdDel CNI del方法
 func cmdDel(args *skel.CmdArgs) error {
@@ -97,6 +94,8 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
+	cniArgs := veth.ParseArgs(args.Args)
+
 	// 释放ipam ip，不需要手动删除ipam文件夹
 	err = veth.ReleaseIP(cfg)
 	if err != nil {
@@ -105,8 +104,15 @@ func cmdDel(args *skel.CmdArgs) error {
 	}
 
 	// TODO 删除veth pair
+	err = veth.DelVeth(cniArgs.PodName)
+	if err != nil {
+		return err
+	}
 
-	// TODO 删除bridge
 	return nil
 
+}
+
+func cmdCheck(*skel.CmdArgs) error {
+	return nil
 }

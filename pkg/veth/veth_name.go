@@ -1,23 +1,12 @@
 package veth
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
-	"fmt"
 	"strings"
 )
 
 const (
 	hostVethPairPrefix = "veth"
 )
-
-func VethNameForWorkload(namespace, podname string) string {
-	// A SHA1 is always 20 bytes long, and so is sufficient for generating the
-	// veth name and mac addr.
-	h := sha1.New()
-	h.Write([]byte(fmt.Sprintf("%s.%s", namespace, podname)))
-	return fmt.Sprintf("%s%s", hostVethPairPrefix, hex.EncodeToString(h.Sum(nil))[:11])
-}
 
 type CniArgs struct {
 	Namespace   string
@@ -38,7 +27,6 @@ func ParseArgs(args string) *CniArgs {
 	m := make(map[string]string)
 
 	attrs := strings.Split(args, ";")
-
 
 	for _, attr := range attrs {
 		kv := strings.Split(attr, "=")

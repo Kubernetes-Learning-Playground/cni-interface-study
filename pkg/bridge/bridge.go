@@ -23,9 +23,11 @@ func CreateOrUpdateBridge(br string) (*netlink.Bridge, error) {
 			// 暂时写死addr
 			var addr *netlink.Addr
 			if addr, err = netlink.ParseAddr("10.16.0.1/16"); err != nil {
+				fmt.Println("ParseAddr add err: ", err)
 				return nil, err
 			}
 			if err = netlink.AddrAdd(br, addr); err != nil {
+				fmt.Println("addr add err: ", err)
 				return nil, err
 			}
 			if err = netlink.LinkSetUp(br); err != nil {
@@ -38,7 +40,7 @@ func CreateOrUpdateBridge(br string) (*netlink.Bridge, error) {
 	if br, ok := link.(*netlink.Bridge); ok {
 		return br, nil
 	} else {
-		return nil, fmt.Errorf("错误的网桥对象")
+		return nil, fmt.Errorf("error bridge")
 	}
 
 }
