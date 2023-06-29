@@ -5,7 +5,7 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 )
 
-// Config CNI conf配置文件
+// Config CNI conf 配置文件
 type Config struct {
 	//types.NetConf // 内置一些字段，直接嵌套使用，弃用，缺少一些ipam需要的字段，自己写
 	CNIVersion string `json:"cniVersion"`
@@ -25,11 +25,9 @@ type IPAM struct {
 }
 
 func LoadCNIConfig(data []byte) (*Config, error) {
-
 	cfg := &Config{}
 	err := json.Unmarshal(data, cfg)
 	if err != nil {
-
 		return nil, err
 	}
 	return cfg, nil

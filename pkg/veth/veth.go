@@ -1,7 +1,6 @@
 package veth
 
 import (
-	"fmt"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 	"net"
@@ -13,9 +12,10 @@ import (
 	"github.com/vishvananda/netns"
 )
 
-// CreateVeth 创建veth
+// CreateVeth 创建 veth
 func CreateVeth(nspath string, addrstr string, br *netlink.Bridge, vethHost, vethContainer string) error {
 
+	// 如果已经存在，删除重新创建
 	if oldHostVeth, err := netlink.LinkByName(vethHost); err == nil {
 		if err = netlink.LinkDel(oldHostVeth); err != nil {
 			return errors.Wrapf(err, "failed to delete old hostVeth %v", err)
@@ -23,82 +23,99 @@ func CreateVeth(nspath string, addrstr string, br *netlink.Bridge, vethHost, vet
 	}
 
 	// TODO: 名字需要修改
-	//var vethHost, vethContainer = RandomVethName(), RandomVethName()
+	// var vethHost, vethContainer = RandomVethName(), RandomVethName()
 	vethpeer := &netlink.Veth{
 		LinkAttrs: netlink.LinkAttrs{Name: vethHost, MTU: 1500},
-		PeerName:  vethContainer, //随机名称  一般是veth@xxxx  建立在宿主机上
+		PeerName:  vethContainer, // veth 名称  一般是 veth@xxxx 建立在宿主机上
 	}
 
-	// 执行ip link add
+	// 执行 ip link add
 	err := netlink.LinkAdd(vethpeer)
 	if err != nil {
 		return errors.Wrapf(err, "netlink.LinkAdd error")
 	}
 
-	// 宿主机
+	/*  宿主机部分：
+		1. 挂载 bridge
+	    2. 启动 veth
+	    3.
+	    4.
+	*/
 
-	// 宿主机veth端
-	myveth_host, err := netlink.LinkByName(vethHost)
+	// 宿主机 veth 端
+	myvethHost, err := netlink.LinkByName(vethHost)
 	if err != nil {
 		return errors.Wrapf(err, "netlink.LinkByName error")
 	}
-	// 挂bridge
-	err = netlink.LinkSetMaster(myveth_host, br)
+	// 挂 bridge
+	err = netlink.LinkSetMaster(myvethHost, br)
 	if err != nil {
 		return errors.Wrapf(err, "netlink.LinkSetMaster error")
 	}
-	// 启动veth
-	err = netlink.LinkSetUp(myveth_host)
+	// 启动 veth
+	err = netlink.LinkSetUp(myvethHost)
 	if err != nil {
 		return errors.Wrapf(err, "netlink.LinkSetUp error")
 	}
 
 	ns, err := netns.GetFromPath(nspath)
 	if err != nil {
-		fmt.Println("netns.GetFromPath err: ", err)
-		return errors.Wrapf(err, "netlink.LinkSetUp error")
+		klog.Error("netns.GetFromPath err: ", err)
+		return errors.Wrapf(err, "netlink.GetFromPath error")
 	}
 	defer ns.Close()
 
-	//获取 容器里面的 veth设备
+	// 获取 容器里面的 veth 设备
 	myvethContainer, err := netlink.LinkByName(vethContainer)
 	if err != nil {
-		fmt.Println("netlink.LinkByName err: ", err)
-		return errors.Wrapf(err, "netlink.LinkSetUp error")
+		klog.Error("netlink.LinkByName err: ", err)
+		return errors.Wrapf(err, "netlink.LinkByName error")
 	}
 
-	// 容器中
+	// 容器部分
+	/*
+			1. 将另一端放入 ns 中
+			2. 进入 ns
+			3. 获取 veth 设备
+		    4. 设置 ip 地址
+		    5. 修改 veth 名
+		    6. 启动 veth
+	*/
 
 	// ip link set xxx netns nsname
-	// 把另一端veth放入容器ns
+	// 把另一端 veth 放入容器 ns
 	err = netlink.LinkSetNsFd(myvethContainer, int(ns))
 	if err != nil {
-		fmt.Println("netlink.LinkSetNsFd err: ", err)
+		klog.Error("netlink.LinkSetNsFd err: ", err)
 		return errors.Wrapf(err, "netlink.LinkSetUp error")
 	}
 
-	// 进入ns空间
+	// 进入 ns 空间
 	err = netns.Set(ns)
 	if err != nil {
-		fmt.Println("netns.Set add err: ", err)
-		return errors.Wrapf(err, "netlink.LinkSetUp error")
+		klog.Error("netns.Set add err: ", err)
+		return errors.Wrapf(err, "netns.Set error")
 	}
-	// 获取ns的veth设备
+
+	// 获取 ns 的 veth 设备
 	myvethContainer, err = netlink.LinkByName(vethContainer)
 	if err != nil {
-		return errors.Wrapf(err, "netlink.LinkSetUp error")
+		return errors.Wrapf(err, "netlink.LinkByName error")
 	}
 
 	// 设置地址
 	addr, _ := netlink.ParseAddr(addrstr)
-	//设置IP地址
+
+	// 设置 IP 地址
 	err = netlink.AddrAdd(myvethContainer, addr)
 	if err != nil {
-		return errors.Wrapf(err, "netlink.LinkSetUp error")
+		return errors.Wrapf(err, "netlink.AddrAdd error")
 	}
-	// ns中veth设备名称改为eth0
+
+	// ns 中 veth 设备名称改为 eth0
 	_ = netlink.LinkSetName(myvethContainer, "eth0")
-	// 启动
+
+	// 启动容器中的 veth
 	err = netlink.LinkSetUp(myvethContainer)
 	if err != nil {
 		return errors.Wrapf(err, "netlink.LinkSetUp error")
@@ -121,9 +138,9 @@ func addRoute() error {
 	return netlink.RouteAdd(route)
 }
 
-// DelVeth 删除veth设备
+// DelVeth 删除 veth 设备
 func DelVeth(hostVethName string) error {
-	// 删除veth pair
+	// 删除 veth pair
 	if err := ip.DelLinkByName(hostVethName); err != nil {
 		klog.Error("del link err: ", err)
 		return errors.Wrapf(err, "ip.DelLinkByName error")

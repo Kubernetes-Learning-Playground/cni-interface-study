@@ -10,7 +10,7 @@ import (
 	"net"
 )
 
-// Ipam 使用ipam插件分配网络地址
+// Ipam 使用 ipam 插件分配网络地址
 func Ipam(conf *config.Config) (types.Result, error) {
 	ipNet, err := types.ParseCIDR(conf.IPAM.Subnet)
 	if err != nil {
@@ -57,7 +57,7 @@ func Ipam(conf *config.Config) (types.Result, error) {
 	return ipam.ExecAdd(conf.IPAM.Type, ipamConfBytes)
 }
 
-// ReleaseIP 释放ipam分配的地址
+// ReleaseIP 释放 ipam 分配的地址
 func ReleaseIP(conf *config.Config) error {
 	ipNet, err := types.ParseCIDR(conf.IPAM.Subnet)
 	if err != nil {
@@ -71,6 +71,7 @@ func ReleaseIP(conf *config.Config) error {
 			return errors.Errorf("range start %s error", conf.IPAM.RangeStart)
 		}
 	}
+
 	if conf.IPAM.RangeEnd != "" {
 		endIP = net.ParseIP(conf.IPAM.RangeEnd)
 		if endIP == nil {
@@ -96,6 +97,7 @@ func ReleaseIP(conf *config.Config) error {
 			Routes:  conf.IPAM.Routes,
 		},
 	}
+
 	ipamConfBytes, err := json.Marshal(ipamConf)
 	if err != nil {
 		return errors.Wrapf(err, "marshal ipam conf error")

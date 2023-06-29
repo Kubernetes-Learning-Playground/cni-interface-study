@@ -14,6 +14,7 @@ type CniArgs struct {
 	ContainerID string
 }
 
+// ParseArgs 解析传入参数
 func ParseArgs(args string) *CniArgs {
 	// FIXME: 测试用
 	if args == "" {
